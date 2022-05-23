@@ -1,0 +1,142 @@
+﻿@page "/kse"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using System.Globalization;
+@using EnergyTracker.Shared.Models
+@using DevExpress.Blazor
+@inject HttpClient Http
+
+<PageTitle>Power demand</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Power demand in Poland</MudText>
+<MudText Class="mb-2">This data comes from <a href="https://www.pse.pl/dane-systemowe/funkcjonowanie-kse/raporty-dobowe-z-pracy-kse/zapotrzebowanie-mocy-kse"><u style="color: blue">PSE</u></a>.</MudText>
+@if (loading == true)
+{
+    <MudProgressCircular Color="Color.Default" Indeterminate="true" />
+}
+else
+{
+    <table style="padding-bottom: 25px">
+        <tr>
+             <th style="width:50%; padding-right: 25px">
+                 <MudDatePicker Label="Start date" @bind-Date="startDate"/>
+            </th>
+            <th style="width:50%; padding-left: 25px; padding-right: 25px">
+                 <MudDatePicker Label="End date" @bind-Date="endDate"/>
+            </th>
+            <th style="width:50%; padding-left: 25px;"> 
+                 <MudButton Variant="Variant.Filled" Color="Color.Primary" @onclick="ButtonOnClick">Apply</MudButton>
+            </th>
+        </tr>
+    </table>
+
+    <DxChart T="Kse"
+             Width="100%">
+        <DxChartLegend Position="RelativePosition.Inside"
+                       VerticalAlignment="VerticalEdge.Top"
+                       HorizontalAlignment="DevExpress.Blazor.HorizontalAlignment.Right" />
+        <DxChartLineSeries T="Kse"
+                           Data="@kses"
+                           TArgument="DateTime"
+                           TValue="int"
+                           ArgumentField="i => i.Date"
+                           ValueField="i => i.Power/1000"
+                           Color="@System.Drawing.Color.Magenta"
+                           Name="KSE data">
+            <DxChartSeriesPoint Visible="false" />
+            <DxChartAggregationSettings Enabled="true"
+                                        Method="ChartAggregationMethod.Average" />
+        </DxChartLineSeries>
+        <DxChartLineSeries T="Kse"
+                           Data="@predictions"
+                           TArgument="DateTime"
+                           TValue="int"
+                           ArgumentField="i => i.Date"
+                           ValueField="i => i.Power/1000"
+                           Color="@System.Drawing.Color.Blue"
+                           Name="Prediction">
+            <DxChartSeriesPoint Visible="false" />
+            <DxChartAggregationSettings Enabled="true"
+                                        Method="ChartAggregationMethod.Average" />
+        </DxChartLineSeries>
+        <DxChartArgumentAxis>
+            <DxChartAxisRange StartValue="startDate"
+                              EndValue="endDate" />
+        </DxChartArgumentAxis>
+        <DxChartValueAxis>
+            <DxChartAxisTitle Text="Power [MW]" />
+        </DxChartValueAxis>
+        <DxChartLegend Visible="false" />
+        <DxChartZoomAndPanSettings ArgumentAxisZoomAndPanMode="ChartAxisZoomAndPanMode.Both" />
+        <DxChartScrollBarSettings ArgumentAxisScrollBarVisible="true"
+                                  ArgumentAxisScrollBarPosition="ChartScrollBarPosition.Bottom" />
+        <DxChartTooltip Enabled="true" Position="RelativePosition.Outside">
+            <div style="margin: 0.75rem">
+                <div class="font-weight-bold">
+                    @(((DateTime)context.Point.Argument).ToString())
+                </div>
+                <div>
+                    @(context.Point.Value) MW
+                </div>
+            </div>
+        </DxChartTooltip>
+    </DxChart>
+
+    <hr style="padding-top: 25px; border: none" />
+    <MudTable Items="kses" Hover="true" Height="50vh" Breakpoint="Breakpoint.Sm" Virtualize="true" SortLabel="Sort By" Elevation="0" Dense="true" Bordered="true"> 
+        <HeaderContent>
+            <MudTh><MudTableSortLabel InitialDirection="SortDirection.Ascending" SortBy="new Func<Kse, object>(x=>x.Date)">Date</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<Kse, object>(x=>x.Power)">Power [MW]</MudTableSortLabel></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Date">@context.Date</MudTd>
+            <MudTd DataLabel="Summary">@(context.Power/1000)</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+
+
+@code {
+    private bool loading = true;
+    private List<Kse>? kses;
+    private List<Kse>? predictions;
+    private DateTime? _endDate;
+
+    private DateTime? startDate { get; set; } = DateTime.Today.AddDays(-7);
+    private DateTime? endDate
+    {
+        get
+        {
+            return _endDate;
+        }
+        set
+        {
+            _endDate = new DateTime(((DateTime)value).Year, ((DateTime)value).Month, ((DateTime)value).Day, 23, 59, 59, DateTimeKind.Local);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            endDate = DateTime.Now;
+            loading = true;
+            kses = await Http.GetFromJsonAsync<List<Kse>>($"api/Kse/GetByDate?startDate={((DateTime)startDate).ToString("u", CultureInfo.InvariantCulture)}&endDate={((DateTime)endDate).ToString("u", CultureInfo.InvariantCulture)}");
+            predictions = await Http.GetFromJsonAsync<List<Kse>>("api/Kse/GetPredictions");
+            loading = false;
+        }
+        catch (AccessTokenNotAvailableException exception)
+        {
+            exception.Redirect();
+        }
+    }
+
+    private async Task ButtonOnClick()
+    {
+        loading = true;
+        kses = await Http.GetFromJsonAsync<List<Kse>>($"api/Kse/GetByDate?startDate={((DateTime)startDate).ToString("u", CultureInfo.InvariantCulture)}&endDate={((DateTime)endDate).ToString("u", CultureInfo.InvariantCulture)}");
+        predictions = await Http.GetFromJsonAsync<List<Kse>>("api/Kse/GetPredictions");
+        loading = false;
+    }
+}

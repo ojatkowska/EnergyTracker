@@ -1,0 +1,81 @@
+﻿@page
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Machine Learning</title>
+    <link href="~/css/bootstrap/bootstrap.min.css" rel="stylesheet" />
+    <link href="~/css/app.css" rel="stylesheet" asp-append-version="true" />
+</head>
+
+<body>
+    <div class="main">
+        <div class="content px-4">
+            <a href="/">Back To Home Page</a><br />
+            Window Length: <input name="Window Length" value="168" id="windowLengthText"><br />
+            Horizon: <input name="Horizon" value="24" id="horizonText"><br />
+            Batch Size: <input name="Batch Size" value="32" id="batchSizeText"><br />
+            Shuffle: <input name="Shuffle" type="checkbox" checked id="shuffleCheckbox"><br />
+            Epochs: <input name="Epochs" value="5" id="epochsText"><br />
+            Latent Dimension: <input name="Latent Dimension" value="16" id="latentDimensionText"><br />
+            Hidden Layers: <input name="Hidden Layers" value="2" id="hiddenLayersText"><br />
+            Hidden Dimension: <input name="Hidden Dimension" value="16" id="hiddenDimensionText"><br />
+            Hidden Activation: <select name="Hidden Activation" id="hiddenActivationSelect">
+                <option value="elu">elu</option>
+                <option value="exponential">exponential</option>
+                <option value="hard_sigmoid">hard_sigmoid</option>
+                <option value="linear">linear</option>
+                <option selected value="relu">relu</option>
+                <option value="selu">selu</option>
+                <option value="sigmoid">sigmoid</option>
+                <option value="softplus">softplus</option>
+                <option value="softsign">softsign</option>
+                <option value="swish">swish</option>
+                <option value="tanh">tanh</option>
+            </select><br />
+            Training/Validation Split: <input name="Train Val Split" value="70" id="trainValSplitText"><br />
+            Validation/Test Split: <input name="Val Test Split" value="90" id="valTestSplitText"><br />
+            <button id="executeButton">Execute</button><br />
+            <div id="output"></div><br />
+        </div>
+    </div>
+</body>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.js"></script>
+<script>
+    document.getElementById("executeButton").addEventListener("click", () => {
+        var windowLength = parseInt(document.getElementById("windowLengthText").value);
+        var horizon = parseInt(document.getElementById("horizonText").value);
+        var batchSize = parseInt(document.getElementById("batchSizeText").value);
+        var shuffle = Boolean(document.getElementById("shuffleCheckbox").value);
+        var epochs = parseInt(document.getElementById("epochsText").value);
+        var latentDim = parseInt(document.getElementById("latentDimensionText").value)
+        var hiddenLayers = parseInt(document.getElementById("hiddenLayersText").value)
+        var hiddenDim = parseInt(document.getElementById("hiddenDimensionText").value)
+        var hiddenActivation = document.getElementById("hiddenActivationSelect").value
+        var trainValSplit = parseInt(document.getElementById("trainValSplitText").value)
+        var valTestSplit = parseInt(document.getElementById("valTestSplitText").value)
+        var connection = new signalR.HubConnectionBuilder()
+        .withUrl("/hub/ml", {
+            skipNegotiation: false,
+            transport: signalR.HttpTransportType.WebSockets
+        }).build();
+        var outputDiv = document.getElementById("output");
+        connection
+            .start()
+            .then(() => {
+                connection.on("OutputRecieved", message => {
+                    var p = document.createElement("p");
+                    p.textContent = message;
+                    outputDiv.appendChild(p);
+                });
+                connection.invoke("Stream", windowLength, horizon, batchSize, shuffle, epochs, latentDim, hiddenLayers, 
+                    hiddenDim, hiddenActivation, trainValSplit, valTestSplit);
+            }).catch(err => alert(`An error occured: ${err}`));
+    });
+</script>
+
+</html>
