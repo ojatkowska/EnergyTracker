@@ -18,7 +18,7 @@
             Window Length: <input name="Window Length" value="168" id="windowLengthText"><br />
             Horizon: <input name="Horizon" value="24" id="horizonText"><br />
             Batch Size: <input name="Batch Size" value="32" id="batchSizeText"><br />
-            Shuffle: <input name="Shuffle" type="checkbox" checked id="shuffleCheckbox"><br />
+            Shuffle: <input name="Shuffle" type="checkbox" id="shuffleCheckbox"><br />
             Epochs: <input name="Epochs" value="5" id="epochsText"><br />
             Latent Dimension: <input name="Latent Dimension" value="16" id="latentDimensionText"><br />
             Hidden Layers: <input name="Hidden Layers" value="2" id="hiddenLayersText"><br />
@@ -38,6 +38,9 @@
             </select><br />
             Training/Validation Split: <input name="Train Val Split" value="70" id="trainValSplitText"><br />
             Validation/Test Split: <input name="Val Test Split" value="90" id="valTestSplitText"><br />
+            Start Date: <input name="Start Date" value="@(new DateTime(2015, 1, 1, 0, 0, 0).ToString(System.Globalization.CultureInfo.InvariantCulture))" id="startDateText"><br />
+            End Date: <input name="End Date" value="@(new DateTime(2022, 6, 30, 23, 0, 0).ToString(System.Globalization.CultureInfo.InvariantCulture))" id="endDateText"><br />
+            Save To File: <input name="Save To File" type="checkbox" checked id="saveToFileCheckbox"><br />
             <button id="executeButton">Execute</button><br />
             <div id="output"></div><br />
         </div>
@@ -58,6 +61,9 @@
         var hiddenActivation = document.getElementById("hiddenActivationSelect").value
         var trainValSplit = parseInt(document.getElementById("trainValSplitText").value)
         var valTestSplit = parseInt(document.getElementById("valTestSplitText").value)
+        var startDate = document.getElementById("startDateText").value
+        var endDate = document.getElementById("endDateText").value
+        var saveToFile = Boolean(document.getElementById("saveToFileCheckbox").value);
         var connection = new signalR.HubConnectionBuilder()
         .withUrl("/hub/ml", {
             skipNegotiation: false,
@@ -73,7 +79,7 @@
                     outputDiv.appendChild(p);
                 });
                 connection.invoke("Stream", windowLength, horizon, batchSize, shuffle, epochs, latentDim, hiddenLayers, 
-                    hiddenDim, hiddenActivation, trainValSplit, valTestSplit);
+                    hiddenDim, hiddenActivation, trainValSplit, valTestSplit, startDate, endDate, saveToFile);
             }).catch(err => alert(`An error occured: ${err}`));
     });
 </script>

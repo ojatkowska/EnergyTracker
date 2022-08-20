@@ -22,10 +22,10 @@ namespace EnergyTracker.Server.Controllers
         }
 
         [HttpGet("GetWithWeather")]
-        public IActionResult GetWithWeather()
+        public IActionResult GetWithWeather(DateTime startDate, DateTime endDate)
         {
-            var kses = db.Kses.ToList();
-            var weathers = db.Weathers.ToList();
+            var kses = db.Kses.Where(x => x.Date >= startDate && x.Date <= endDate).ToList();
+            var weathers = db.Weathers.Where(x => x.Date >= startDate && x.Date <= endDate).ToList();
 
             var diffDatesWeather = kses.Select(x => x.Date).Except(weathers.Select(x => x.Date)).ToList();
             var forecasts = db.Forecasts.Where(x => diffDatesWeather.Contains(x.Date)).ToList();
@@ -37,10 +37,10 @@ namespace EnergyTracker.Server.Controllers
                 {
                     Date = item.Date,
                     IsWorkingDay = publicHoliday.IsWorkingDay(item.Date),
-                    Humidity = weathers.Single(x => x.Date == item.Date.AddDays(-1)).Humidity,
-                    Pressure = weathers.Single(x => x.Date == item.Date.AddDays(-1)).Pressure,
-                    Temperature = weathers.Single(x => x.Date == item.Date.AddDays(-1)).Temperature,
-                    WindSpeed = weathers.Single(x => x.Date == item.Date.AddDays(-1)).WindSpeed,
+                    Humidity = weathers.FirstOrDefault(x => x.Date == item.Date.AddDays(-1)).Humidity,
+                    Pressure = weathers.FirstOrDefault(x => x.Date == item.Date.AddDays(-1)).Pressure,
+                    Temperature = weathers.FirstOrDefault(x => x.Date == item.Date.AddDays(-1)).Temperature,
+                    WindSpeed = weathers.FirstOrDefault(x => x.Date == item.Date.AddDays(-1)).WindSpeed,
                 });
             }
 

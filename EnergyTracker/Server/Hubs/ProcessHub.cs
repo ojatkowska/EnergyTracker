@@ -1,16 +1,24 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace EnergyTracker.Server.Hubs
 {
     public class ProcessHub : Hub
     {
+        private readonly IConfiguration config;
+
+        public ProcessHub(IConfiguration config)
+        {
+            this.config = config;
+        }
+
         public void Stream(int windowLength = 168, int horizon = 24, int batchSize = 32, bool shuffle = true, int epochs = 5,
             int latentDimension = 16, int hiddenLayers = 2, int hiddenDimension = 16, string hiddenActivation = "relu", 
-            int trainValSplit = 70, int valTestSplit = 90)
+            int trainValSplit = 70, int valTestSplit = 90, string? startDate = null, string? endDate = null, bool saveToFile = true)
         {
             Stream(windowLength, horizon, batchSize, shuffle, epochs, latentDimension, hiddenLayers,
-                hiddenDimension, hiddenActivation, trainValSplit, valTestSplit, o =>
+                hiddenDimension, hiddenActivation, trainValSplit, valTestSplit, startDate, endDate, saveToFile, o =>
             {
                 Clients.All.SendAsync("OutputRecieved", o);
             });
@@ -21,7 +29,7 @@ namespace EnergyTracker.Server.Hubs
 
         private void Stream(int windowLength, int horizon, int batchSize, bool shuffle, int epochs,
             int latentDimension, int hiddenLayers, int hiddenDimension, string hiddenActivation,
-            int trainValSplit, int valTestSplit, Action<string> outputHandler)
+            int trainValSplit, int valTestSplit, string? startDate, string? endDate, bool saveToFile, Action<string> outputHandler)
         {
             TerminateProcessIfExists();
             var process = new Process()
@@ -47,9 +55,10 @@ namespace EnergyTracker.Server.Hubs
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
-            process.StandardInput.Write($"python3 ml-script.py --window_length {windowLength} --horizon {horizon} --batch_size {batchSize} --shuffle {shuffle} --epochs {epochs}" +
+            process.StandardInput.Write($"{config.GetValue<string>("Python:Path")} ml-script.py --window_length {windowLength} --horizon {horizon} --batch_size {batchSize} --shuffle {shuffle} --epochs {epochs}" +
                 $" --latent_dimension {latentDimension} --hidden_layers {hiddenLayers} --hidden_dimension {hiddenDimension} --hidden_activation {hiddenActivation}" +
-                $" --train_val_split {trainValSplit} --val_test_split {valTestSplit}" + NEWLINE);
+                $" --train_val_split {trainValSplit} --val_test_split {valTestSplit} --start_date {Convert.ToDateTime(startDate, CultureInfo.InvariantCulture).ToString("yyyy-MM-ddTHH:mm:ssK")}" +
+                $" --end_date {Convert.ToDateTime(endDate, CultureInfo.InvariantCulture).ToString("yyyy-MM-ddTHH:mm:ssK")} --save_to_file {saveToFile}" + NEWLINE);
             process.WaitForExit();
             _process = process;
         }

@@ -1,3 +1,4 @@
+from datetime import datetime
 import requests
 import argparse
 
@@ -59,6 +60,10 @@ HIDDEN_DIMENSION = 16
 HIDDEN_ACTIVATION = 'relu'
 TRAIN_VAL_SPLIT = 70
 VAL_TEST_SPLIT = 90
+START_DATE = datetime.fromisoformat('2016-01-01T00:00:00') # From which period program should try get data
+END_DATE = datetime.fromisoformat('2050-06-30T23:00:00')
+SAVE_TO_FILE = True
+DATETIME_NOW = datetime.now().strftime("%d%m%Y%H%M%S")
 
 # Parsing arguments from command line
 parser = argparse.ArgumentParser()
@@ -73,6 +78,9 @@ parser.add_argument('-d', '--hidden_dimension')
 parser.add_argument('-a', '--hidden_activation')
 parser.add_argument('-t', '--train_val_split')
 parser.add_argument('-u', '--val_test_split')
+parser.add_argument('-x', '--start_date')
+parser.add_argument('-y', '--end_date')
+parser.add_argument('-o', '--save_to_file')
 args = parser.parse_args()
 argv = vars(args)
 
@@ -87,9 +95,13 @@ HIDDEN_DIMENSION = int(argv['hidden_dimension'])
 HIDDEN_ACTIVATION = argv['hidden_activation']
 TRAIN_VAL_SPLIT = int(argv['train_val_split'])
 VAL_TEST_SPLIT = int(argv['val_test_split'])
+START_DATE = datetime.fromisoformat(argv['start_date'])
+END_DATE = datetime.fromisoformat(argv['end_date'])
+SAVE_TO_FILE = bool(argv['save_to_file'])
 
 # Import data
-response = requests.get('https://localhost:5001/api/Kse/GetWithWeather', verify=False)
+request_url = 'https://localhost:5001/api/Kse/GetWithWeather?startDate=' + START_DATE.isoformat() + '&endDate=' + END_DATE.isoformat()
+response = requests.get(request_url, verify=False)
 df = pd.read_json(response.text)
 df.set_index('date', inplace=True)
 
@@ -160,7 +172,7 @@ model = tf.keras.models.Model(
 
 optimizer = tf.keras.optimizers.Adam()
 loss = tf.keras.losses.Huber()
-metrics = [tf.metrics.MeanAbsoluteError(), tf.metrics.MeanAbsolutePercentageError(), tf.metrics.MeanSquaredError(), tf.metrics.RootMeanSquaredError()]
+metrics = [tf.metrics.MeanAbsoluteError(), tf.metrics.MeanSquaredLogarithmicError(), tf.metrics.MeanAbsolutePercentageError(), tf.metrics.MeanSquaredError(), tf.metrics.RootMeanSquaredError()]
 model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
 
 # Train the model
@@ -168,14 +180,17 @@ history = model.fit(training_windowed, epochs=EPOCHS,
                     validation_data=validation_windowed)
 
 # Evauluate the model on test data
-model.evaluate(test_windowed)
+performance_score = model.evaluate(test_windowed)
+if SAVE_TO_FILE:
+    score_frame = pd.DataFrame.from_dict(performance_score)
+    score_frame.to_csv(DATETIME_NOW + '-metrics.csv', encoding='utf-8', index=False)
 
 # Download forecast
 response2 = requests.get('https://localhost:5001/api/Weather/GetFuture', verify=False, params={
     'startDate': df.tail(1).index,
     'days': np.math.ceil(HORIZON/24)
   })
-df2 = pd.read_json(response2.text)
+df2 = pd.read_json(response2.text).head(HORIZON)
 df2.set_index('date', inplace=True)
 
 # Add day and year signal
@@ -205,8 +220,10 @@ prediction_table = pd.DataFrame.from_records(prediction_value[0], columns=['powe
 plot_prediction = pd.concat([df[-1:], prediction_table])
 
 # Post the prediction back to website
-send_data = plot_prediction.reset_index()[['date', 'power']].astype({"power": int}).to_json(orient="records", date_format="iso")
-req = requests.post("https://localhost:5001/api/Kse/PostPredictions", verify=False, json = send_data)
+send_data = plot_prediction.reset_index()[['date', 'power']].astype({"power": int})
+if SAVE_TO_FILE:
+    send_data.to_csv(DATETIME_NOW + '-prediction.csv', encoding='utf-8', index=False)
+req = requests.post("https://localhost:5001/api/Kse/PostPredictions", verify=False, json = send_data.to_json(orient="records", date_format="iso"))
 
 if req.status_code == 200:
     exit(0)

@@ -1,5 +1,6 @@
 using EnergyTracker.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace EnergyTracker.Server.Controllers
 {
@@ -29,7 +30,19 @@ namespace EnergyTracker.Server.Controllers
         [HttpGet("GetFuture")]
         public List<Forecast> GetFuture(DateTime startDate, int days)
         {
-            return db.Forecasts.Where(x => x.Date > startDate && x.Date <= startDate.AddDays(days)).ToList();
+            var forecasts = db.Forecasts.Where(x => x.Date > startDate && x.Date <= startDate.AddDays(days)).ToList();
+            var weathers = db.Weathers.Where(x => x.Date > startDate && x.Date <= startDate.AddDays(days)).ToList();
+
+            var diffDatesWeather = weathers.Select(x => x.Date).Except(forecasts.Select(x => x.Date)).ToList();
+            if (diffDatesWeather.Any())
+            {
+                weathers = weathers.Where(x => diffDatesWeather.Contains(x.Date)).ToList();
+                var weatherConverted = JsonSerializer.Deserialize<List<Forecast>>(JsonSerializer.Serialize(weathers));
+                forecasts.AddRange(weatherConverted);
+                return forecasts;
+            }
+            else
+                return forecasts;
         }
     }
 }
